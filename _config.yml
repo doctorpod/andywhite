@@ -1,29 +1,20 @@
-title:            Andy White
-tagline:          A beautiful theme.
-description:      Describe your website.
-canonical: http://andywhite.org
+title: Andy White
+email: 
+description: The nerd geek
+baseurl: "" # the subpath of your site, e.g. /blog
+url: http://andywhite.org
+twitter_username: doctorpod
+github_username:  doctorpod
+permalink: pretty
 
-# Owner/author information
-owner:
-  name:           Andy White
-  avatar:         avatar.png
-  bio:            "Aesthete & Athlete"
-  email:          andy@andywhite.org
-  twitter:        doctorpod
-  github:         doctorpod
-  instagram:      ctrunsthis
-  dribbble:       
-  disqus:         balzac
-  location:       "Brighton, UK"
-  # Plug in your disqus shortname!
-
-tools:
-  standards:      "HTML, SCSS, Jekyll"
-  software:       "git"
-
-# Open Graph customization
-opengraph:
-  locale:           en_US
+# Build settings
+markdown: kramdown
+theme: minima
+gems:
+  - jekyll-feed
+exclude:
+  - Gemfile
+  - Gemfile.locsc
 
 # Links to include in top navigation
 # For external links add external: true
@@ -31,31 +22,5 @@ links:
   - title: Blog
     url: /blog
 
-# http://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-timezone:    America/New_York
-future:      true
-highlighter: pygments
-markdown:    kramdown
-
-kramdown:
-  auto_ids: true
-  footnote_nr: 1
-  entity_output: as_char
-  toc_levels: 1..6
-  enable_coderay: false
-
-  coderay:
-    coderay_line_numbers:
-    coderay_line_numbers_start: 1
-    coderay_tab_width: 4
-    coderay_bold_every: 10
-    coderay_css: class
-
-sass:
-    style: :compressed
-
-# https://github.com/mojombo/jekyll/wiki/Permalinks
-permalink:   pretty
-
-include: [".htaccess"]
-exclude: ["lib", "config.rb", "Capfile", "config", "log", "Rakefile", "Rakefile.rb", "tmp"]
+disqus:
+  shortname: andywhite

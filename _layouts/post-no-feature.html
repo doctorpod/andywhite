@@ -48,8 +48,11 @@
       </aside>
       {% endif %}
 
+        {% if site.disqus.shortname %}
+        {% include disqus.html post=include.post %}
+        {% endif %}
+
       </article>
-    </section>
-</div>
+</section>
 
 {% include footer.html %}
