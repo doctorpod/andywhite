@@ -1,0 +1,5 @@
+ErrorDocument 404 /404.html
+RewriteEngine On
+RewriteCond %{HTTPS} off [OR]
+RewriteCond %{HTTP_HOST} ^www\. [NC]
+RewriteRule ^ https://andywhite.org%{REQUEST_URI} [R=301,L]

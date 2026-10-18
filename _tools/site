@@ -12,6 +12,15 @@ PUBLIC="$ROOT/public"
 HUGO=""
 tmp=""
 
+# Where deploy puts the site. Everything there that isn't in the build is
+# deleted, except these DreamHost files at the top level: its diagnostics
+# symlink (owned by root) and the folder Let's Encrypt uses to renew the
+# certificate. The leading / anchors each one, so copies DreamHost leaves in
+# subfolders don't keep stale folders alive.
+DEPLOY_TARGET="andy2047@iad1-shared-b7-14.dreamhost.com:andywhite.org/"
+DEPLOY_EXCLUDES=(/.dh-diag /.well-known/)
+SITE_URL="https://andywhite.org"
+
 # shellcheck source=image-limits
 source "$ROOT/_tools/image-limits"
 
@@ -28,6 +37,8 @@ Commands:
   serve   Preview the site locally, including drafts
   build   Build the site into public/
   check   Verify the built site in public/
+  deploy  Build, check and upload the site to DreamHost, after showing what
+          will change and asking first (--yes skips the question)
 
 serve and build first shrink, in place, any image in content/ or static/ over
 the limits in _tools/image-limits.
@@ -248,8 +259,28 @@ check_no_third_party_resources() {
   return 1
 }
 
+# The build ships the .htaccess that sends http:// and www. to the one
+# canonical address, and serves the site's own 404 page.
+check_htaccess() {
+  local ok=0 file="$PUBLIC/.htaccess" line
+  [[ -f "$file" ]] || { echo "missing: public/.htaccess"; return 1; }
+  for line in \
+    'ErrorDocument 404 /404.html' \
+    'RewriteEngine On' \
+    'RewriteCond %{HTTPS} off [OR]' \
+    'RewriteCond %{HTTP_HOST} ^www\. [NC]' \
+    'RewriteRule ^ https://andywhite.org%{REQUEST_URI} [R=301,L]'; do
+    if ! grep -qxF "$line" "$file"; then
+      echo "public/.htaccess lacks: $line"
+      ok=1
+    fi
+  done
+  return $ok
+}
+
 CHECKS=(
   check_required_files
+  check_htaccess
   check_url_parity
   check_no_drafts
   check_feed
@@ -272,13 +303,88 @@ cmd_check() {
   echo "check passed"
 }
 
+# Runs rsync from public/ to the server, passing on any extra flags. macOS
+# ships openrsync, so only use flags it supports. BatchMode makes a missing SSH
+# key fail rather than prompt for a password.
+sync_site() {
+  local args=(-a -v --delete -e "ssh -o BatchMode=yes") exclude
+  for exclude in "${DEPLOY_EXCLUDES[@]}"; do
+    args+=(--exclude "$exclude")
+  done
+  rsync "${args[@]}" "$@" "$PUBLIC/" "$DEPLOY_TARGET"
+}
+
+# Prints "<status> <url>" for each check of the live site that fails, and
+# returns non-zero if any did.
+check_live() {
+  local ok=0 url status final line path page
+  for url in http://andywhite.org/ http://www.andywhite.org/ https://www.andywhite.org/; do
+    status="$(curl -sI -o /dev/null -w '%{http_code} %{redirect_url}' "$url" || true)"
+    if [[ "$status" != "301 $SITE_URL/" ]]; then
+      echo "expected a 301 to $SITE_URL/: $url gave ${status:-no response}"
+      ok=1
+    fi
+    final="$(curl -sIL --max-redirs 5 -o /dev/null -w '%{http_code}' "$url" || true)"
+    if [[ "$final" != "200" ]]; then
+      echo "expected to end in 200 after redirects: $url gave ${final:-no response}"
+      ok=1
+    fi
+  done
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    path="${line%% -> *}"
+    status="$(curl -s -o /dev/null -w '%{http_code}' "$SITE_URL$path" || true)"
+    if [[ "$status" != "200" ]]; then
+      echo "expected 200: $SITE_URL$path gave ${status:-no response}"
+      ok=1
+    fi
+  done < "$ROOT/_tools/expected-paths.txt"
+  path="/no-such-page-$RANDOM/"
+  page="$(mktemp)"
+  status="$(curl -s -o "$page" -w '%{http_code}' "$SITE_URL$path" || true)"
+  if [[ "$status" != "404" ]] || ! cmp -s "$page" "$PUBLIC/404.html"; then
+    echo "expected the site's 404 page: $SITE_URL$path gave ${status:-no response}"
+    ok=1
+  fi
+  rm -f "$page"
+  return $ok
+}
+
+cmd_deploy() {
+  local yes=0 answer
+  case "${1:-}" in
+    --yes) yes=1 ;;
+    "") ;;
+    *) usage ;;
+  esac
+  cmd_build
+  cmd_check
+
+  echo "Dry run: what would change on $DEPLOY_TARGET"
+  sync_site --dry-run || die "the dry run failed; nothing was deployed"
+
+  if (( ! yes )); then
+    read -r -p "Deploy? [y/N] " answer
+    [[ "$answer" == "y" ]] || die "not deployed"
+  fi
+  sync_site || die "the upload failed part way; run deploy again"
+
+  echo "Checking $SITE_URL..."
+  if check_live; then
+    echo "live checks passed"
+  else
+    die "live checks failed"
+  fi
+}
+
 case "${1:-}" in
-  serve | build | check) enable_hooks ;;
+  serve | build | check | deploy) enable_hooks ;;
 esac
 
 case "${1:-}" in
   serve) cmd_serve ;;
   build) cmd_build ;;
   check) cmd_check ;;
+  deploy) shift; cmd_deploy "$@" ;;
   *) usage ;;
 esac
