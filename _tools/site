@@ -86,12 +86,97 @@ check_required_files() {
   return $ok
 }
 
+# Every URL in expected-paths.txt exists in public/. Redirect entries must be
+# Hugo alias pages whose refresh target is the expected URL.
+check_url_parity() {
+  local ok=0 line path target file base
+  base="$(sed -n 's/^baseURL *= *"\(.*\)"$/\1/p' "$ROOT/hugo.toml")"
+  base="${base%/}"
+  [[ -n "$base" ]] || { echo "no baseURL in hugo.toml"; return 1; }
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    path="${line%% -> *}"
+    target=""
+    [[ "$line" == *" -> "* ]] && target="${line#* -> }"
+
+    file="$PUBLIC$path"
+    [[ "$path" == */ ]] && file="${file}index.html"
+    if [[ ! -f "$file" ]]; then
+      echo "missing: $path (public${file#"$PUBLIC"})"
+      ok=1
+    elif [[ -n "$target" ]] \
+      && ! grep -qF "content=\"0; url=$base$target\"" "$file"; then
+      echo "not a redirect to $target: $path"
+      ok=1
+    fi
+  done < "$ROOT/_tools/expected-paths.txt"
+  return $ok
+}
+
+# Prints the permalink of each blog post Hugo lists as $1 (drafts or published).
+post_permalinks() {
+  "$HUGO" list "$1" --source "$ROOT" | grep -oE 'https?://[^,"]+,page,blog$' \
+    | sed 's/,page,blog$//'
+}
+
+# No draft post is in public/, the feed or the sitemap.
+check_no_drafts() {
+  local ok=0 url path
+  while IFS= read -r url; do
+    path="/${url#*://*/}"
+    if [[ -e "$PUBLIC$path" ]] || grep -qF "$url" "$PUBLIC/feed.xml" "$PUBLIC/sitemap.xml"; then
+      echo "draft published: $path"
+      ok=1
+    fi
+  done < <(post_permalinks drafts)
+  return $ok
+}
+
+# The feed lists every published post, and nothing else, and has no email.
+check_feed() {
+  local ok=0 url posts items
+  posts=0
+  while IFS= read -r url; do
+    posts=$((posts + 1))
+    if ! grep -qF "<link>$url</link>" "$PUBLIC/feed.xml"; then
+      echo "not in feed: $url"
+      ok=1
+    fi
+  done < <(post_permalinks published)
+  items="$(grep -o '<item>' "$PUBLIC/feed.xml" | wc -l | tr -d ' ')"
+  if (( items != posts )); then
+    echo "feed has $items items, expected $posts"
+    ok=1
+  fi
+  if grep -qE '<(email|managingEditor|webMaster)>|<author>[^<]*@' "$PUBLIC/feed.xml"; then
+    echo "feed contains an email address"
+    ok=1
+  fi
+  return $ok
+}
+
+# Images are stored with their pages, never loaded from another site.
+check_no_hotlinked_images() {
+  local files
+  files="$(grep -rlE '<img[^>]* src="?(https?:)?//' "$PUBLIC" --include='*.html' || true)"
+  if [[ -n "$files" ]]; then
+    echo "hotlinked images in:"
+    echo "$files" | sed "s|^$PUBLIC|  public|"
+    return 1
+  fi
+}
+
 CHECKS=(
   check_required_files
+  check_url_parity
+  check_no_drafts
+  check_feed
+  check_no_hotlinked_images
 )
 
 cmd_check() {
   [[ -d "$PUBLIC" ]] || die "public/ doesn't exist; run _tools/site build first"
+  ensure_hugo
   local failed=0 check
   for check in "${CHECKS[@]}"; do
     "$check" || failed=1

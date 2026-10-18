@@ -1,0 +1,29 @@
+# Every URL the site must keep serving, checked against public/ by
+# `_tools/site check`. One path per line. A path ending in / means its
+# index.html. "old -> new" means old must be a redirect page pointing at new.
+
+/
+/blog/
+/404.html
+/feed.xml
+/sitemap.xml
+/robots.txt
+/humans.txt
+/favicon.ico
+
+/2015/10/02/monolith-to-microservice/
+/2015/11/02/luna/
+/2016/05/20/cafe-coho/
+/2016/05/29/varjak/
+/2016/06/03/birds/
+/2016/06/23/artist-inspires-photography/
+/2017/08/12/lumpy-weather/
+/2017/09/24/automation/
+/2017/12/03/how-to-solve-problems/
+
+/articles/ -> /blog/
+/software-development/2015/10/02/monolith-to-microservice/ -> /2015/10/02/monolith-to-microservice/
+/poetry/2015/11/02/luna/ -> /2015/11/02/luna/
+/photography/2016/05/20/cafe-coho/ -> /2016/05/20/cafe-coho/
+/photography/2016/05/29/varjak/ -> /2016/05/29/varjak/
+/philosophy/2016/06/03/birds/ -> /2016/06/03/birds/

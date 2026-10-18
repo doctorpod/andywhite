@@ -1,3 +1,4 @@
 ---
-title: Recent Posts
+title: "Recent Posts"
+aliases: ["/articles/"]
 ---
