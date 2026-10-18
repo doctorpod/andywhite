@@ -4,18 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ if .IsHome }}{{ site.Title }}{{ else }}{{ .Title }} · {{ site.Title }}{{ end }}</title>
-  {{ with .Description }}<meta name="description" content="{{ . }}">{{ end }}
+  <meta name="description" content="{{ .Description | default site.Params.description }}">
+  <link rel="canonical" href="{{ .Permalink }}">
+  <link rel="stylesheet" href="{{ "css/site.css" | relURL }}">
   <link rel="alternate" type="application/rss+xml" title="{{ site.Title }}" href="{{ "feed.xml" | absURL }}">
 </head>
 <body>
-  <header>
-    <a href="{{ "/" | relURL }}">{{ site.Title }}</a>
+  <header class="site-header">
+    <a class="site-title" href="{{ "/" | relURL }}">{{ site.Title }}</a>
+    <nav>
+      {{- $blog := site.GetPage "/blog" }}
+      <a href="{{ "/" | relURL }}"{{ if .IsHome }} aria-current="page"{{ end }}>Home</a>
+      <a href="{{ $blog.RelPermalink }}"{{ if eq . $blog }} aria-current="page"{{ end }}>Blog</a>
+    </nav>
   </header>
   <main>
     {{ block "main" . }}{{ end }}
   </main>
-  <footer>
-    <p>© {{ now.Year }} {{ site.Title }}</p>
-  </footer>
+  {{ partial "footer.html" . }}
 </body>
 </html>

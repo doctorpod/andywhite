@@ -7,4 +7,4 @@ aliases: ["/software-development/2015/10/02/monolith-to-microservice/"]
 ---
 The talk I did at Brighton Ruby Group yesterday.
 
-<iframe width="100%" height="375" src="https://www.youtube.com/embed/G6CIYUyI7mI?rel=0" frameborder="0" allowfullscreen></iframe>
+[Watch the talk on YouTube](https://www.youtube.com/watch?v=G6CIYUyI7mI).

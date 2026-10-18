@@ -155,15 +155,44 @@ check_feed() {
   return $ok
 }
 
-# Images are stored with their pages, never loaded from another site.
-check_no_hotlinked_images() {
-  local files
-  files="$(grep -rlE '<img[^>]* src="?(https?:)?//' "$PUBLIC" --include='*.html' || true)"
-  if [[ -n "$files" ]]; then
-    echo "hotlinked images in:"
-    echo "$files" | sed "s|^$PUBLIC|  public|"
-    return 1
-  fi
+# Prints "public/<file>" for each file in $1, indented, after the heading $2.
+report_files() {
+  [[ -z "$1" ]] && return 0
+  echo "$2"
+  echo "$1" | sed "s|^$PUBLIC|  public|"
+  return 1
+}
+
+check_no_scripts() {
+  report_files "$(grep -rl '<script' "$PUBLIC" --include='*.html' || true)" \
+    "script tags in:"
+}
+
+# No email address is published, in any file.
+check_no_email() {
+  report_files "$(grep -rliE 'mailto:|andy@andywhite\.org' "$PUBLIC" || true)" \
+    "email addresses in:"
+}
+
+# Pages load nothing from another site: no scripts, stylesheets, fonts, images
+# or frames. Ordinary outbound links are fine. The minifier drops attribute
+# quotes, so quotes are optional in the patterns.
+check_no_third_party_resources() {
+  local own='^(https:)?//andywhite[.]org(/|$)' url='(https?:)?//[^"'"'"' >)]+' found
+  found="$(
+    {
+      grep -roE "(src|srcset|poster|data)=[\"']?$url" "$PUBLIC" --include='*.html'
+      grep -roE "<link[^>]* href=[\"']?$url" "$PUBLIC" --include='*.html'
+      grep -roE "url\([\"']?$url" "$PUBLIC" --include='*.html' --include='*.css'
+      grep -roE '@import[^;]*' "$PUBLIC" --include='*.css'
+    } | sed -E "s/:(src|srcset|poster|data)=[\"']?/:/; s/:<link.* href=[\"']?/:/; s/:url\([\"']?/:/" \
+      | awk -F: -v own="$own" '{ u = substr($0, index($0, ":") + 1) } u !~ own' \
+      || true
+  )"
+  [[ -z "$found" ]] && return 0
+  echo "third-party resources:"
+  echo "$found" | sed "s|^$PUBLIC|  public|"
+  return 1
 }
 
 CHECKS=(
@@ -171,7 +200,9 @@ CHECKS=(
   check_url_parity
   check_no_drafts
   check_feed
-  check_no_hotlinked_images
+  check_no_scripts
+  check_no_email
+  check_no_third_party_resources
 )
 
 cmd_check() {

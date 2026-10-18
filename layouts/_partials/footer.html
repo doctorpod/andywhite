@@ -1,0 +1,28 @@
+<footer class="site-footer">
+  <section>
+    <h2>Recent posts</h2>
+    <ul>
+      {{- range first 3 (site.GetPage "/blog").Pages.ByDate.Reverse }}
+        <li>
+          <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+          <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "January 02, 2006" }}</time>
+        </li>
+      {{- end }}
+    </ul>
+  </section>
+  <section>
+    <h2>Elsewhere</h2>
+    <ul>
+      {{- with site.Params.github }}
+        <li><a href="https://github.com/{{ . }}">GitHub</a></li>
+      {{- end }}
+      {{- with site.Params.twitter }}
+        <li><a href="https://x.com/{{ . }}">X (Twitter)</a></li>
+      {{- end }}
+      {{- with site.Params.instagram }}
+        <li><a href="https://www.instagram.com/{{ . }}/">Instagram</a></li>
+      {{- end }}
+    </ul>
+  </section>
+  <small>© {{ now.Year }} {{ site.Title }}</small>
+</footer>

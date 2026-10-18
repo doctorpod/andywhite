@@ -7,9 +7,9 @@ slug: artist-inspires-photography
 Until I saw the story about this Spanish artist Lita Cabellut. She started life
 on the streets.
 
-<a data-pin-do="embedPin" data-pin-width="large" href="https://uk.pinterest.com/pin/321655598368833846/"></a>
+[View the painting on Pinterest](https://uk.pinterest.com/pin/321655598368833846/)
 
 I like her paintings. Captures the essence of the person. A mix of classical and
 pop art. 
 
-<a data-pin-do="embedPin" data-pin-width="large" href="https://uk.pinterest.com/pin/321655598368833850/"></a>
+[View the painting on Pinterest](https://uk.pinterest.com/pin/321655598368833850/)
