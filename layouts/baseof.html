@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ if .IsHome }}{{ site.Title }}{{ else }}{{ .Title }} · {{ site.Title }}{{ end }}</title>
+  {{ with .Description }}<meta name="description" content="{{ . }}">{{ end }}
+  <link rel="alternate" type="application/rss+xml" title="{{ site.Title }}" href="{{ "feed.xml" | absURL }}">
+</head>
+<body>
+  <header>
+    <a href="{{ "/" | relURL }}">{{ site.Title }}</a>
+  </header>
+  <main>
+    {{ block "main" . }}{{ end }}
+  </main>
+  <footer>
+    <p>© {{ now.Year }} {{ site.Title }}</p>
+  </footer>
+</body>
+</html>

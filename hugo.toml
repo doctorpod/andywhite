@@ -1,0 +1,29 @@
+baseURL = "https://andywhite.org/"
+title = "Andy White"
+locale = "en-GB"
+timeZone = "Europe/London"
+
+# The site has no tags or categories pages.
+disableKinds = ["taxonomy", "term"]
+
+# Same URLs as the old site: posts at /YYYY/MM/DD/slug/, the list at /blog/.
+[permalinks.page]
+  blog = "/:year/:month/:day/:slug/"
+
+# One feed, for the whole site, at /feed.xml.
+[outputs]
+  home = ["html", "rss"]
+  section = ["html"]
+
+[outputFormats.RSS]
+  baseName = "feed"
+
+# Posts contain raw HTML such as <img> tags.
+[markup.goldmark.renderer]
+  unsafe = true
+
+[params]
+  description = "Aesthete & Athlete"
+  github = "doctorpod"
+  twitter = "doctorpod"
+  instagram = "ctrunsthis"

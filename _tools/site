@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+#
+# Build, preview, check and deploy andywhite.org.
+#
+# Uses only tools macOS ships with. Hugo itself is fetched on first use, at the
+# exact version named in .hugo-version, and cached in bin/.
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PUBLIC="$ROOT/public"
+HUGO=""
+tmp=""
+
+die() {
+  echo "site: $*" >&2
+  exit 1
+}
+
+usage() {
+  cat >&2 <<EOF
+Usage: _tools/site <command>
+
+Commands:
+  serve   Preview the site locally, including drafts
+  build   Build the site into public/
+  check   Verify the built site in public/
+EOF
+  exit 1
+}
+
+# Sets HUGO to the pinned Hugo binary, downloading it first if it isn't cached.
+# Hugo's macOS releases are signed installer packages; the binary is unpacked
+# from the package rather than installed, so nothing outside bin/ changes.
+ensure_hugo() {
+  local version dir url
+  [[ -f "$ROOT/.hugo-version" ]] || die ".hugo-version is missing"
+  version="$(tr -d '[:space:]' < "$ROOT/.hugo-version")"
+  [[ -n "$version" ]] || die ".hugo-version is empty"
+
+  dir="$ROOT/bin/hugo-$version"
+  HUGO="$dir/hugo"
+  [[ -x "$HUGO" ]] && return
+
+  url="https://github.com/gohugoio/hugo/releases/download/v$version/hugo_${version}_darwin-universal.pkg"
+  echo "Downloading Hugo $version..." >&2
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
+
+  curl -fL --progress-bar -o "$tmp/hugo.pkg" "$url" \
+    || die "couldn't download Hugo $version from $url"
+  pkgutil --check-signature "$tmp/hugo.pkg" > /dev/null \
+    || die "the Hugo $version package isn't signed; not using it"
+  pkgutil --expand-full "$tmp/hugo.pkg" "$tmp/pkg" > /dev/null \
+    || die "couldn't unpack the Hugo $version package"
+  [[ -f "$tmp/pkg/Payload/hugo" ]] || die "no hugo binary in the Hugo $version package"
+
+  mkdir -p "$dir"
+  mv "$tmp/pkg/Payload/hugo" "$HUGO"
+  chmod +x "$HUGO"
+  "$HUGO" version >&2
+}
+
+cmd_build() {
+  ensure_hugo
+  HUGO_ENVIRONMENT=production "$HUGO" --source "$ROOT" --destination "$PUBLIC" \
+    --cleanDestinationDir --minify
+}
+
+cmd_serve() {
+  ensure_hugo
+  "$HUGO" server --source "$ROOT" --buildDrafts
+}
+
+# Checks run against public/. Each prints its own failures and returns non-zero
+# if anything is wrong; add new ones to CHECKS.
+
+check_required_files() {
+  local ok=0 file
+  for file in index.html feed.xml sitemap.xml; do
+    if [[ ! -f "$PUBLIC/$file" ]]; then
+      echo "missing: public/$file"
+      ok=1
+    fi
+  done
+  return $ok
+}
+
+CHECKS=(
+  check_required_files
+)
+
+cmd_check() {
+  [[ -d "$PUBLIC" ]] || die "public/ doesn't exist; run _tools/site build first"
+  local failed=0 check
+  for check in "${CHECKS[@]}"; do
+    "$check" || failed=1
+  done
+  if (( failed )); then
+    echo "check failed" >&2
+    exit 1
+  fi
+  echo "check passed"
+}
+
+case "${1:-}" in
+  serve) cmd_serve ;;
+  build) cmd_build ;;
+  check) cmd_check ;;
+  *) usage ;;
+esac
