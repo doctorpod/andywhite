@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+#
+# Refuses a commit that stages an image over the size limits in
+# _tools/image-limits. It only checks the staged files; it never changes them.
+
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+# shellcheck source=../_tools/image-limits
+source "$ROOT/_tools/image-limits"
+
+command -v sips > /dev/null || {
+  echo "pre-commit: can't check image sizes without sips; this hook needs macOS" >&2
+  exit 1
+}
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+
+shrinkable=()
+manual=()
+while IFS= read -r -d '' path; do
+  case "$(echo "$path" | tr '[:upper:]' '[:lower:]')" in
+    *.jpg | *.jpeg | *.png | *.webp | *.gif) ;;
+    *) continue ;;
+  esac
+  # Check what is staged, not what is in the working tree.
+  staged="$tmp/staged.${path##*.}"
+  git show ":$path" > "$staged"
+  is_oversized "$staged" || continue
+  # The build can re-encode a JPEG and resize a PNG, but it can't make a PNG
+  # smaller without resizing it, or write WebP or GIF at all.
+  entry="  $path ($(describe_image "$staged"))"
+  case "$(echo "$path" | tr '[:upper:]' '[:lower:]')" in
+    *.jpg | *.jpeg) shrinkable+=("$entry") ;;
+    *.png) if (( $(long_edge "$staged") > MAX_EDGE )); then
+        shrinkable+=("$entry")
+      else
+        manual+=("$entry")
+      fi ;;
+    *) manual+=("$entry") ;;
+  esac
+done < <(git diff --cached --name-only --diff-filter=AM -z)
+
+(( ${#shrinkable[@]} + ${#manual[@]} == 0 )) && exit 0
+
+limit="${MAX_EDGE}px on the long edge or $((MAX_BYTES / 1048576)) MB"
+echo "Commit refused: these staged images are over $limit." >&2
+if (( ${#shrinkable[@]} )); then
+  printf '%s\n' "${shrinkable[@]}" >&2
+  echo "Run _tools/site build (or serve) to shrink them, then stage them again." >&2
+fi
+if (( ${#manual[@]} )); then
+  printf '%s\n' "${manual[@]}" >&2
+  echo "These can't be shrunk automatically; resize them, or save them as JPEG." >&2
+fi
+exit 1

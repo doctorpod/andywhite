@@ -12,6 +12,9 @@ PUBLIC="$ROOT/public"
 HUGO=""
 tmp=""
 
+# shellcheck source=image-limits
+source "$ROOT/_tools/image-limits"
+
 die() {
   echo "site: $*" >&2
   exit 1
@@ -25,8 +28,56 @@ Commands:
   serve   Preview the site locally, including drafts
   build   Build the site into public/
   check   Verify the built site in public/
+
+serve and build first shrink, in place, any image in content/ or static/ over
+the limits in _tools/image-limits.
 EOF
   exit 1
+}
+
+# Points git at the versioned hooks in .githooks/, so a fresh clone gets them
+# without any setup.
+enable_hooks() {
+  git -C "$ROOT" rev-parse --git-dir > /dev/null 2>&1 || return 0
+  [[ "$(git -C "$ROOT" config core.hooksPath || true)" == ".githooks" ]] && return
+  git -C "$ROOT" config core.hooksPath .githooks
+  echo "Enabled the git hooks in .githooks/" >&2
+}
+
+require_sips() {
+  command -v sips > /dev/null || die "this script needs macOS (sips is missing)"
+}
+
+# Shrinks, in place, any image in content/ or static/ over the limits in
+# image-limits. sips can't write WebP or GIF, so those are only reported.
+shrink_images() {
+  require_sips
+  local file name before
+  while IFS= read -r -d '' file; do
+    is_oversized "$file" || continue
+    name="${file#"$ROOT"/}"
+    before="$(describe_image "$file")"
+    case "$(echo "$file" | tr '[:upper:]' '[:lower:]')" in
+      *.jpg | *.jpeg)
+        if (( $(long_edge "$file") > MAX_EDGE )); then
+          sips -Z "$MAX_EDGE" -s formatOptions 80 "$file" > /dev/null
+        else
+          sips -s formatOptions 80 "$file" > /dev/null
+        fi
+        ;;
+      *.png)
+        # sips -Z also enlarges, so only resize images that are too big.
+        (( $(long_edge "$file") > MAX_EDGE )) && sips -Z "$MAX_EDGE" "$file" > /dev/null
+        ;;
+    esac
+    if [[ "$(describe_image "$file")" != "$before" ]]; then
+      echo "shrunk: $name ($before -> $(describe_image "$file"))"
+    fi
+    if is_oversized "$file"; then
+      echo "still too large: $name ($(describe_image "$file")); resize it, or save it as JPEG" >&2
+    fi
+  done < <(find "$ROOT/content" "$ROOT/static" -type f \( -iname '*.jpg' -o -iname '*.jpeg' \
+    -o -iname '*.png' -o -iname '*.webp' -o -iname '*.gif' \) -print0)
 }
 
 # Sets HUGO to the pinned Hugo binary, downloading it first if it isn't cached.
@@ -63,12 +114,14 @@ ensure_hugo() {
 
 cmd_build() {
   ensure_hugo
+  shrink_images
   HUGO_ENVIRONMENT=production "$HUGO" --source "$ROOT" --destination "$PUBLIC" \
     --cleanDestinationDir --minify
 }
 
 cmd_serve() {
   ensure_hugo
+  shrink_images
   "$HUGO" server --source "$ROOT" --buildDrafts
 }
 
@@ -218,6 +271,10 @@ cmd_check() {
   fi
   echo "check passed"
 }
+
+case "${1:-}" in
+  serve | build | check) enable_hooks ;;
+esac
 
 case "${1:-}" in
   serve) cmd_serve ;;

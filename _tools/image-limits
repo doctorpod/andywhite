@@ -1,0 +1,35 @@
+# Size limits for committed images, shared by _tools/site (which shrinks
+# images over them) and .githooks/pre-commit (which refuses to commit them).
+#
+# 2048px keeps 2048px-wide web exports as they are, while still catching
+# camera originals.
+
+MAX_EDGE=2048
+MAX_BYTES=1048576
+
+# Prints "<width>x<height>px, <size>" for the image file $1.
+describe_image() {
+  local width height bytes
+  read -r width height < <(image_dimensions "$1")
+  bytes="$(stat -f '%z' "$1")"
+  printf '%sx%spx, %s\n' "$width" "$height" "$(awk -v b="$bytes" \
+    'BEGIN { if (b >= 1048576) printf "%.1f MB", b / 1048576; else printf "%d KB", b / 1024 }')"
+}
+
+# Prints "<width> <height>" for the image file $1.
+image_dimensions() {
+  sips -g pixelWidth -g pixelHeight "$1" 2> /dev/null \
+    | awk '/pixelWidth/ { w = $2 } /pixelHeight/ { h = $2 } END { print w, h }'
+}
+
+# Prints the long edge, in pixels, of the image file $1.
+long_edge() {
+  local width height
+  read -r width height < <(image_dimensions "$1")
+  echo $(( width > height ? width : height ))
+}
+
+# Succeeds if the image file $1 is over either limit.
+is_oversized() {
+  (( $(long_edge "$1") > MAX_EDGE || $(stat -f '%z' "$1") > MAX_BYTES ))
+}
